@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vocalyx"
+version = "0.2.0"
+description = "Pitch shifting with independent formant control for spoken word"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "soundfile>=0.12",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+viz = [
+    "matplotlib>=3.7",
+]
+dev = [
+    "matplotlib>=3.7",
+    "pytest>=7.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+vocalyx = "vocalyx.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vocalyx*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]

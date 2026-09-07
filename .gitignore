@@ -205,3 +205,32 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+*.swp
+*.swo
+*~
+
+# Vocalyx - audio samples and output
+*.wav
+*.flac
+*.ogg
+*.mp3
+*.aiff
+*.aif
+*.m4a
+*.png
+output/
+out/
+samples/
+
+# Dev artifacts directory, in case it is ever moved inside the repo
+vocalyx-dev/
