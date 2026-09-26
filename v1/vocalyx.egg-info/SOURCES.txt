@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+tests/test_engine.py
+vocalyx/__init__.py
+vocalyx/cli.py
+vocalyx/engine.py
+vocalyx/presets.py
+vocalyx.egg-info/PKG-INFO
+vocalyx.egg-info/SOURCES.txt
+vocalyx.egg-info/dependency_links.txt
+vocalyx.egg-info/entry_points.txt
+vocalyx.egg-info/requires.txt
+vocalyx.egg-info/top_level.txt
