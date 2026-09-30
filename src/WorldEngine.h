@@ -52,8 +52,35 @@ public:
                 std::vector<std::vector<float>>& output,
                 std::string& errorOut);
 
+    // The same, over a range of analysis frames rather than the whole clip.
+    // This is what makes a slider feel live: synthesizing three seconds around
+    // the playhead costs a fraction of synthesizing a minute.
+    bool renderRange(const Acoustics& acoustics,
+                     int startFrame,
+                     int frameCount,
+                     int outputChannels,
+                     std::vector<std::vector<float>>& output,
+                     std::string& errorOut);
+
+    // Frames held, and how many samples each frame advances — the conversion
+    // between a playhead position and a frame index.
+    int analysisFrameCount() const;
+    int samplesPerFrame() const;
+
     bool hasAnalysis() const;
     void clear();
+
+    // --- morph target ---
+    // A second analysis of the same performance, usually a neural conversion of
+    // it, to blend toward frame by frame. Copied in rather than referenced, so
+    // the engine it came from can be reused.
+    //
+    // Only meaningful when the two recordings say the same words at the same
+    // time. Two unrelated recordings blend into a frame-by-frame average of
+    // different words.
+    bool setMorphTarget(const WorldEngine& other, std::string& errorOut);
+    void clearMorphTarget();
+    bool hasMorphTarget() const;
 
     // The measured median fundamental frequency of the analyzed clip, which is
     // what SourceSpeaker needs so pitch ratios are relative to the real voice
@@ -62,6 +89,13 @@ public:
 
     // Frame spacing in milliseconds, exposed because the display will want it.
     double framePeriodMs() const;
+
+    // The analysis itself, for the formant tracker. Valid only while an
+    // analysis is held; the references die with the next analyze or clear.
+    const std::vector<std::vector<double>>& spectrogram() const;
+    const std::vector<double>& fundamentalTrack() const;
+    int fftSize() const;
+    double sampleRate() const;
 
 private:
     struct Impl;

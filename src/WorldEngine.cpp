@@ -21,27 +21,7 @@ constexpr double kTiltReferenceHz = 1000.0;
 // Reads the warp curve at one frequency, interpolating between the points and
 // holding the end values beyond them.
 float scaleAt(const std::vector<WarpPoint>& warp, float hz) {
-    if (warp.empty())
-        return 1.0f;
-
-    if (hz <= warp.front().sourceHz)
-        return warp.front().scale;
-
-    for (size_t i = 1; i < warp.size(); ++i) {
-        if (hz <= warp[i].sourceHz) {
-            const WarpPoint& a = warp[i - 1];
-            const WarpPoint& b = warp[i];
-
-            const float span = b.sourceHz - a.sourceHz;
-            if (span <= 0.0f)
-                return b.scale;
-
-            const float t = (hz - a.sourceHz) / span;
-            return a.scale + t * (b.scale - a.scale);
-        }
-    }
-
-    return warp.back().scale;
+    return warpScaleAt(warp, hz);
 }
 
 // Magnitude response of one resonance and one antiresonance, used for nasal
@@ -102,6 +82,12 @@ struct WorldEngine::Impl {
     std::vector<double>              modifiedF0;
     std::vector<double>              synthesized;
 
+    // A second analysis of the same performance to blend toward.
+    std::vector<std::vector<double>> morphSpectrogram;
+    std::vector<std::vector<double>> morphAperiodicity;
+    std::vector<double>              morphF0;
+    bool                             morphReady = false;
+
     float medianF0 = 0.0f;
 
     std::vector<double*> pointers(std::vector<std::vector<double>>& rows) {
@@ -119,8 +105,60 @@ bool WorldEngine::hasAnalysis() const { return impl->frames > 0; }
 float WorldEngine::measuredMedianF0Hz() const { return impl->medianF0; }
 double WorldEngine::framePeriodMs() const { return kFramePeriodMs; }
 
+const std::vector<std::vector<double>>& WorldEngine::spectrogram() const { return impl->spectrogram; }
+const std::vector<double>& WorldEngine::fundamentalTrack() const { return impl->f0; }
+int WorldEngine::fftSize() const { return impl->fftSize; }
+double WorldEngine::sampleRate() const { return impl->sampleRate; }
+int WorldEngine::analysisFrameCount() const { return impl->frames; }
+
+int WorldEngine::samplesPerFrame() const {
+    return static_cast<int>(std::round(kFramePeriodMs * impl->sampleRate / 1000.0));
+}
+
 void WorldEngine::clear() {
     *impl = Impl{};
+}
+
+// ---------------------------------------------------------------------------
+// Morph target
+// ---------------------------------------------------------------------------
+
+bool WorldEngine::setMorphTarget(const WorldEngine& other, std::string& errorOut) {
+    errorOut.clear();
+
+    if (!hasAnalysis()) {
+        errorOut = "analyze the source before attaching a morph target";
+        return false;
+    }
+
+    if (!other.hasAnalysis()) {
+        errorOut = "the morph target has no analysis";
+        return false;
+    }
+
+    if (other.impl->fftSize != impl->fftSize) {
+        errorOut = "the two recordings analyzed at different resolutions; "
+                   "they need the same sample rate";
+        return false;
+    }
+
+    impl->morphSpectrogram  = other.impl->spectrogram;
+    impl->morphAperiodicity = other.impl->aperiodicity;
+    impl->morphF0           = other.impl->f0;
+    impl->morphReady        = !impl->morphSpectrogram.empty();
+
+    return impl->morphReady;
+}
+
+void WorldEngine::clearMorphTarget() {
+    impl->morphSpectrogram.clear();
+    impl->morphAperiodicity.clear();
+    impl->morphF0.clear();
+    impl->morphReady = false;
+}
+
+bool WorldEngine::hasMorphTarget() const {
+    return impl->morphReady;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +199,13 @@ bool WorldEngine::analyze(const std::vector<std::vector<float>>& input,
     HarvestOption harvestOption{};
     InitializeHarvestOption(&harvestOption);
     harvestOption.frame_period = kFramePeriodMs;
-    harvestOption.f0_floor     = 60.0;
+
+    // The floor sets how long an analysis window has to be. Putting it far
+    // below the speaker's actual pitch lengthens the window and smears
+    // consonants, so 71 Hz — WORLD's own default — suits adult speech better
+    // than the 60 this used before. A very low voice would need it lowered.
+    harvestOption.f0_floor = 71.0;
+    harvestOption.f0_ceil  = 500.0;
 
     const int frames = GetSamplesForHarvest(static_cast<int>(sampleRate), length, kFramePeriodMs);
     if (frames < 1) {
@@ -234,6 +278,15 @@ bool WorldEngine::render(const Acoustics& acoustics,
                          int outputChannels,
                          std::vector<std::vector<float>>& output,
                          std::string& errorOut) {
+    return renderRange(acoustics, 0, impl->frames, outputChannels, output, errorOut);
+}
+
+bool WorldEngine::renderRange(const Acoustics& acoustics,
+                              int startFrame,
+                              int requestedFrames,
+                              int outputChannels,
+                              std::vector<std::vector<float>>& output,
+                              std::string& errorOut) {
     errorOut.clear();
 
     if (!hasAnalysis()) {
@@ -241,7 +294,8 @@ bool WorldEngine::render(const Acoustics& acoustics,
         return false;
     }
 
-    const int frames = impl->frames;
+    const int first = std::clamp(startFrame, 0, impl->frames - 1);
+    const int frames = std::clamp(requestedFrames, 1, impl->frames - first);
     const int bins   = impl->bins;
     const double binHz = impl->sampleRate / impl->fftSize;
 
@@ -249,9 +303,31 @@ bool WorldEngine::render(const Acoustics& acoustics,
                                      std::vector<double>(static_cast<size_t>(bins), 0.0));
     impl->modifiedAperiodicity.assign(static_cast<size_t>(frames),
                                       std::vector<double>(static_cast<size_t>(bins), 0.0));
-    impl->modifiedF0 = impl->f0;
+
+    impl->modifiedF0.assign(static_cast<size_t>(frames), 0.0);
+    for (int i = 0; i < frames; ++i)
+        impl->modifiedF0[static_cast<size_t>(i)] = impl->f0[static_cast<size_t>(first + i)];
 
     Rng rng;
+
+    // Morphing maps this render's frames onto the second analysis. The two
+    // recordings are the same performance, so the mapping is proportional
+    // rather than a search for correspondence.
+    const bool morphing = impl->morphReady
+                       && (acoustics.morphEnvelope > 0.0001f
+                        || acoustics.morphAperiodicity > 0.0001f
+                        || acoustics.morphF0 > 0.0001f);
+
+    const int morphFrames = static_cast<int>(impl->morphSpectrogram.size());
+
+    auto morphIndex = [&](int i) {
+        if (impl->frames <= 1 || morphFrames <= 0)
+            return 0;
+
+        const double position = static_cast<double>(first + i) / (impl->frames - 1);
+        return std::clamp(static_cast<int>(std::round(position * (morphFrames - 1))),
+                          0, morphFrames - 1);
+    };
 
     // --- fundamental frequency: ratio, then perturbation ---
     for (int i = 0; i < frames; ++i) {
@@ -260,6 +336,21 @@ bool WorldEngine::render(const Acoustics& acoustics,
 
         impl->modifiedF0[static_cast<size_t>(i)] *= acoustics.pitchRatio;
 
+        // Blend toward the other recording's pitch, in the logarithmic domain
+        // where the midpoint of two pitches is the note between them. Only
+        // where both are voiced; a blend against silence is a glitch.
+        if (morphing && acoustics.morphF0 > 0.0001f) {
+            const double other = impl->morphF0[static_cast<size_t>(morphIndex(i))];
+
+            if (other > 0.0) {
+                const double mine = impl->modifiedF0[static_cast<size_t>(i)];
+                const double weight = acoustics.morphF0;
+
+                impl->modifiedF0[static_cast<size_t>(i)] =
+                    std::exp((1.0 - weight) * std::log(mine) + weight * std::log(other));
+            }
+        }
+
         if (acoustics.jitterFraction > 0.0f)
             impl->modifiedF0[static_cast<size_t>(i)] *=
                 1.0 + acoustics.jitterFraction * rng.next();
@@ -267,7 +358,7 @@ bool WorldEngine::render(const Acoustics& acoustics,
 
     // --- envelope: warp, tilt, nasal coupling, frame gain ---
     for (int i = 0; i < frames; ++i) {
-        const auto& sourceFrame = impl->spectrogram[static_cast<size_t>(i)];
+        const auto& sourceFrame = impl->spectrogram[static_cast<size_t>(first + i)];
         auto&       targetFrame = impl->modifiedSpectrogram[static_cast<size_t>(i)];
 
         const double frameGain = (acoustics.shimmerFraction > 0.0f)
@@ -310,11 +401,30 @@ bool WorldEngine::render(const Acoustics& acoustics,
 
             targetFrame[static_cast<size_t>(k)] = std::max(1e-16, value * nasal * nasal * frameGain);
         }
+
+        // Blend the envelope toward the other recording's, geometrically. A
+        // straight average of two spectra produces peaks belonging to neither
+        // voice; interpolating the logarithms moves each resonance toward its
+        // counterpart instead.
+        if (morphing && acoustics.morphEnvelope > 0.0001f) {
+            const auto& other = impl->morphSpectrogram[static_cast<size_t>(morphIndex(i))];
+            const double weight = acoustics.morphEnvelope;
+
+            const int shared = std::min(bins, static_cast<int>(other.size()));
+
+            for (int k = 0; k < shared; ++k) {
+                const double mine = std::max(1e-16, targetFrame[static_cast<size_t>(k)]);
+                const double theirs = std::max(1e-16, other[static_cast<size_t>(k)]);
+
+                targetFrame[static_cast<size_t>(k)] =
+                    std::exp((1.0 - weight) * std::log(mine) + weight * std::log(theirs));
+            }
+        }
     }
 
     // --- aperiodicity: aspiration raises the noise floor, mostly up high ---
     for (int i = 0; i < frames; ++i) {
-        const auto& sourceFrame = impl->aperiodicity[static_cast<size_t>(i)];
+        const auto& sourceFrame = impl->aperiodicity[static_cast<size_t>(first + i)];
         auto&       targetFrame = impl->modifiedAperiodicity[static_cast<size_t>(i)];
 
         for (int k = 0; k < bins; ++k) {
@@ -331,10 +441,38 @@ bool WorldEngine::render(const Acoustics& acoustics,
 
             targetFrame[static_cast<size_t>(k)] = std::clamp(value, 0.0, 1.0);
         }
+
+        // Aperiodicity is already a ratio, so a straight average is correct
+        // here in a way it is not for the envelope.
+        if (morphing && acoustics.morphAperiodicity > 0.0001f) {
+            const auto& other = impl->morphAperiodicity[static_cast<size_t>(morphIndex(i))];
+            const double weight = acoustics.morphAperiodicity;
+
+            const int shared = std::min(bins, static_cast<int>(other.size()));
+
+            for (int k = 0; k < shared; ++k) {
+                targetFrame[static_cast<size_t>(k)] =
+                    std::clamp((1.0 - weight) * targetFrame[static_cast<size_t>(k)]
+                               + weight * other[static_cast<size_t>(k)],
+                               0.0, 1.0);
+            }
+        }
     }
 
     // --- synthesis ---
-    impl->synthesized.assign(static_cast<size_t>(impl->sourceLength), 0.0);
+    // The whole clip's length when rendering everything, otherwise the span the
+    // requested frames cover.
+    const int hop = samplesPerFrame();
+    const int length = (frames == impl->frames)
+                     ? impl->sourceLength
+                     : std::min(frames * hop, impl->sourceLength - first * hop);
+
+    if (length <= 0) {
+        errorOut = "empty render range";
+        return false;
+    }
+
+    impl->synthesized.assign(static_cast<size_t>(length), 0.0);
 
     {
         auto spectrumPtrs     = impl->pointers(impl->modifiedSpectrogram);
@@ -344,14 +482,14 @@ bool WorldEngine::render(const Acoustics& acoustics,
                   spectrumPtrs.data(), aperiodicityPtrs.data(),
                   impl->fftSize, kFramePeriodMs,
                   static_cast<int>(impl->sampleRate),
-                  impl->sourceLength, impl->synthesized.data());
+                  length, impl->synthesized.data());
     }
 
     const int channels = std::max(1, outputChannels);
     output.assign(static_cast<size_t>(channels),
-                  std::vector<float>(static_cast<size_t>(impl->sourceLength), 0.0f));
+                  std::vector<float>(static_cast<size_t>(length), 0.0f));
 
-    for (int n = 0; n < impl->sourceLength; ++n) {
+    for (int n = 0; n < length; ++n) {
         const float sample = static_cast<float>(impl->synthesized[static_cast<size_t>(n)]);
 
         for (int c = 0; c < channels; ++c)

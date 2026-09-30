@@ -14,6 +14,12 @@ namespace {
 constexpr float kPharynxAnchorHz = 700.0f;
 constexpr float kOralAnchorHz    = 2600.0f;
 
+// How much each formant follows the pharynx rather than the oral cavity. No
+// formant belongs to one cavity, and the split varies with the vowel being
+// spoken, so these are a fixed approximation of the average tendency: the lower
+// resonances track the pharynx, the upper ones the mouth.
+constexpr float kPharynxWeight[4] = { 0.70f, 0.50f, 0.30f, 0.20f };
+
 // Protruded lips add roughly this much tube at full rounding.
 constexpr float kLipProtrusionCm = 1.0f;
 
@@ -27,6 +33,30 @@ float safeDivide(float numerator, float denominator) {
 }
 
 } // namespace
+
+float warpScaleAt(const std::vector<WarpPoint>& warp, float hz) {
+    if (warp.empty())
+        return 1.0f;
+
+    if (hz <= warp.front().sourceHz)
+        return warp.front().scale;
+
+    for (size_t i = 1; i < warp.size(); ++i) {
+        if (hz <= warp[i].sourceHz) {
+            const WarpPoint& a = warp[i - 1];
+            const WarpPoint& b = warp[i];
+
+            const float span = b.sourceHz - a.sourceHz;
+            if (span <= 0.0f)
+                return b.scale;
+
+            const float t = (hz - a.sourceHz) / span;
+            return a.scale + t * (b.scale - a.scale);
+        }
+    }
+
+    return warp.back().scale;
+}
 
 Acoustics deriveAcoustics(const Physiology& target, const SourceSpeaker& source) {
     Acoustics out;
@@ -56,19 +86,103 @@ Acoustics deriveAcoustics(const Physiology& target, const SourceSpeaker& source)
 
     // --- the warp curve ------------------------------------------------------
     //
-    // Four points: the low end follows the pharynx, the high end follows the
-    // oral cavity, with the third formant region pulled further down when the
-    // lips are rounded.
+    // With measured formants, the curve bends at the speaker's own resonances:
+    // each one is given the cavity ratio it mostly follows, and the curve is
+    // interpolated between them. Without measurements it falls back to fixed
+    // anchors at frequencies where an average speaker's cavities dominate.
 
     const float thirdFormantScale =
         oralRatio * (1.0f - kRoundingThirdFormantPull * std::clamp(target.lipRounding, 0.0f, 1.0f));
 
-    out.warp = {
-        { 0.0f,              pharynxRatio },
-        { kPharynxAnchorHz,  pharynxRatio },
-        { kThirdFormantHz,   thirdFormantScale },
-        { kOralAnchorHz * 2, oralRatio },
-    };
+    if (target.useFormantTargets && source.formantsMeasured) {
+        // Each measured formant goes exactly where it was dragged. The curve is
+        // those pairs and nothing else, so what you see is what is applied.
+        out.warp.clear();
+        out.warp.reserve(6);
+
+        float firstScale = 1.0f;
+        float lastScale  = 1.0f;
+        float lastHz     = 0.0f;
+        bool  any        = false;
+
+        for (int n = 0; n < 4; ++n) {
+            const float from = source.formantHz[static_cast<size_t>(n)];
+            const float to   = target.formantTargetHz[static_cast<size_t>(n)];
+
+            if (from <= 0.0f || to <= 0.0f)
+                continue;
+
+            const float scale = to / from;
+
+            if (!any) {
+                firstScale = scale;
+                any = true;
+            }
+
+            out.warp.push_back({ from, scale });
+
+            lastScale = scale;
+            lastHz    = from;
+        }
+
+        if (any) {
+            out.warp.insert(out.warp.begin(), { 0.0f, firstScale });
+            out.warp.push_back({ lastHz * 2.0f, lastScale });
+        }
+    }
+
+    if (out.warp.empty() && source.formantsMeasured) {
+        out.warp.clear();
+        out.warp.reserve(6);
+
+        float lowestScale = pharynxRatio;
+        float highestScale = oralRatio;
+        float highestHz = 0.0f;
+
+        for (int n = 0; n < 4; ++n) {
+            const float hz = source.formantHz[static_cast<size_t>(n)];
+
+            if (hz <= 0.0f)
+                continue;
+
+            const float weight = kPharynxWeight[n];
+            float scale = pharynxRatio * weight + oralRatio * (1.0f - weight);
+
+            // Rounding pulls the third formant down further than length alone
+            // explains, because it also narrows the opening.
+            if (n == 2)
+                scale *= (1.0f - kRoundingThirdFormantPull * std::clamp(target.lipRounding, 0.0f, 1.0f));
+
+            if (out.warp.empty())
+                lowestScale = scale;
+
+            out.warp.push_back({ hz, scale });
+
+            highestScale = scale;
+            highestHz    = hz;
+        }
+
+        if (out.warp.empty()) {
+            out.warp = {
+                { 0.0f,              pharynxRatio },
+                { kPharynxAnchorHz,  pharynxRatio },
+                { kThirdFormantHz,   thirdFormantScale },
+                { kOralAnchorHz * 2, oralRatio },
+            };
+        } else if (out.warp.front().sourceHz > 0.0f) {
+            // Hold the end values beyond the outermost formants rather than
+            // letting the curve run off in either direction.
+            out.warp.insert(out.warp.begin(), { 0.0f, lowestScale });
+            out.warp.push_back({ highestHz * 2.0f, highestScale });
+        }
+    } else if (out.warp.empty()) {
+        out.warp = {
+            { 0.0f,              pharynxRatio },
+            { kPharynxAnchorHz,  pharynxRatio },
+            { kThirdFormantHz,   thirdFormantScale },
+            { kOralAnchorHz * 2, oralRatio },
+        };
+    }
 
     // Effort raises the first formant a little. Adding it to the low anchor
     // rather than the whole curve keeps the change where it belongs.
@@ -100,6 +214,10 @@ Acoustics deriveAcoustics(const Physiology& target, const SourceSpeaker& source)
 
     out.jitterFraction  = 0.02f * std::clamp(target.jitter, 0.0f, 1.0f);
     out.shimmerFraction = 0.15f * std::clamp(target.shimmer, 0.0f, 1.0f);
+
+    out.morphEnvelope     = std::clamp(target.morphEnvelope, 0.0f, 1.0f);
+    out.morphAperiodicity = std::clamp(target.morphAperiodicity, 0.0f, 1.0f);
+    out.morphF0           = std::clamp(target.morphF0, 0.0f, 1.0f);
 
     // --- nasal coupling ------------------------------------------------------
     //

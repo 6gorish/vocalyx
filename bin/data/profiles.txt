@@ -1,0 +1,31 @@
+# Vocalyx speaker profiles
+#
+# Each line: name  f0  f1  f2  f3  f4     (all in hertz)
+#
+# A profile is a speaker group's average across vowels. Transformation works on
+# ratios: pick the group your recording belongs to as the reference, pick
+# another as the target, and each formant moves by target over reference.
+#
+# Source: Hillenbrand, Getty, Clark and Wheeler (1995), "Acoustic
+# characteristics of American English vowels", Journal of the Acoustical
+# Society of America 97, 3099-3111. Values below are means across the twelve
+# vowels in their descriptive statistics file, for 45 men, 48 women and 46
+# children.
+#
+# One caveat worth remembering: these come from isolated h-V-d words read
+# aloud, where pitch runs higher and vowels are more carefully articulated than
+# in connected speech. The ratios between groups transfer well; the absolute
+# numbers are not what conversation looks like.
+
+h95-man     131.2   523.6   1508.1   2511.9   3545.0
+h95-woman   220.4   616.9   1761.8   2857.1   4167.4
+h95-child   237.0   650.3   1947.0   3105.2   4316.0
+
+# Ratios that follow from the above, for reference while dialling by hand:
+#
+#   woman / man    f0 1.68    F1 1.18   F2 1.17   F3 1.14   F4 1.18
+#   child / man    f0 1.81    F1 1.24   F2 1.29   F3 1.24   F4 1.22
+#
+# The gap between the pitch ratio and the formant ratios is the whole problem
+# with transforming a voice by ear: pitch moves two thirds of an octave while
+# the resonances move under three semitones.

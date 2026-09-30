@@ -17,6 +17,7 @@
 // distribution. They are a starting point to tune by ear, not measurements of
 // any particular person.
 
+#include <array>
 #include <vector>
 
 namespace vocalyx {
@@ -26,12 +27,16 @@ namespace vocalyx {
 // ---------------------------------------------------------------------------
 
 // Every transformation is a ratio between the speaker who was recorded and the
-// speaker being modelled, so the original has to be described too. These can be
-// estimated from the recording later; for now they are what you tell the
-// application about your own voice.
+// speaker being modelled, so the original has to be described too. Tract length
+// and pitch come from the analysis when it succeeds; the formants let the warp
+// curve bend where this speaker's resonances actually sit rather than where an
+// average speaker's would.
 struct SourceSpeaker {
     float tractLengthCm = 17.0f;   // adult men average roughly 17-18, women 14-15
     float medianF0Hz    = 110.0f;  // the speaker's habitual pitch
+
+    std::array<float, 4> formantHz{};   // F1 to F4, zero where not measured
+    bool formantsMeasured = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -83,6 +88,23 @@ struct Physiology {
     // flattens the source's spectral slope, which is most of what makes a
     // loud voice sound loud even at the same playback level.
     float effort = 0.0f;                  // -1 relaxed, 0 conversational, 1 loud
+
+    // --- direct formant targets ---
+    // When set, these override the geometry above: each measured formant is
+    // sent to the frequency given here, and the warp curve is built from those
+    // pairs. The anatomy then acts as a way to position these rather than as
+    // the only route to a warp.
+    std::array<float, 4> formantTargetHz{};
+    bool useFormantTargets = false;
+
+    // --- morph toward a second recording ---
+    // How far to blend toward a converted version of the same performance,
+    // frame by frame. Each layer moves separately, because they carry
+    // different parts of identity: the envelope carries timbre, the pitch
+    // track carries melody, the aperiodicity carries breath and roughness.
+    float morphEnvelope     = 0.0f;
+    float morphAperiodicity = 0.0f;
+    float morphF0           = 0.0f;
 };
 
 // ---------------------------------------------------------------------------
@@ -119,11 +141,22 @@ struct Acoustics {
     // Period and amplitude perturbation, as fractions.
     float jitterFraction  = 0.0f;
     float shimmerFraction = 0.0f;
+
+    // Carried through from Physiology unchanged, since the engine is where the
+    // blending happens.
+    float morphEnvelope     = 0.0f;
+    float morphAperiodicity = 0.0f;
+    float morphF0           = 0.0f;
 };
 
 // Turns a target anatomy into the acoustic quantities that realize it, relative
 // to the speaker actually recorded.
 Acoustics deriveAcoustics(const Physiology& target, const SourceSpeaker& source);
+
+// Reads the warp curve at one frequency, interpolating between the points and
+// holding the end values beyond them. Multiplying a measured formant by this is
+// where that formant ends up.
+float warpScaleAt(const std::vector<WarpPoint>& warp, float hz);
 
 // Named starting points. Presets are anatomies, so they carry across whatever
 // engine is underneath.

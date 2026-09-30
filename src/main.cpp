@@ -3,7 +3,7 @@
 
 int main() {
     ofGLFWWindowSettings settings;
-    settings.setSize(1024, 768);
+    settings.setSize(1280, 860);
     settings.windowMode = OF_WINDOW;
     settings.title = "Vocalyx";
 

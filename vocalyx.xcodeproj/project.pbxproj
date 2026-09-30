@@ -16,6 +16,9 @@
 		"401271AD-F4F7-43D6-BDE0-42FEA85E1ED1" /* synthesisrealtime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "B890FD1A-A134-4C87-9F99-A270826A6CE1" /* synthesisrealtime.cpp */; };
 		"4FDBE343-C0ED-4417-8F73-01E4280AB3CA" /* ofxSlider.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "738E935C-8CED-4E55-89CE-AB362526F398" /* ofxSlider.cpp */; };
 		"50C4200F-82B8-4307-8267-380A5299C2DC" /* ofxBaseGui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "B2DD95BC-E7BE-4174-9F58-0132BC3409A7" /* ofxBaseGui.cpp */; };
+		57E58650306CC9A400A7640A /* SpeakerProfiles.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 57E5864F306CC9A400A7640A /* SpeakerProfiles.cpp */; };
+		57E58651306CC9A400A7640A /* FormantTracker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 57E5864D306CC9A400A7640A /* FormantTracker.cpp */; };
+		57E58652306CC9A400A7640A /* FilterEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 57E5864B306CC9A400A7640A /* FilterEngine.cpp */; };
 		"62BA43F6-824D-4612-962B-0B051926C99E" /* ofxButton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "B3536824-F9A5-4630-9638-21227D7C76DC" /* ofxButton.cpp */; };
 		"649D039B-10C1-4611-B8E5-43516AE23B1C" /* ofxInputField.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "3E4B48B0-117D-4FB6-81B0-F94B607AE92C" /* ofxInputField.cpp */; };
 		"65AA1968-9ED4-4BE8-8F05-73ABFEFBF3D2" /* dio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = "40D69736-A6D3-4B6D-BA4E-36A1F88CDDC7" /* dio.cpp */; };
@@ -79,6 +82,12 @@
 		"54134BA3-0AA6-4B65-A609-65A46DD9320F" /* matlabfunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = matlabfunctions.cpp; sourceTree = "<group>"; };
 		"546E25F2-FB3F-4582-A0F3-8F96D82D24C2" /* Physiology.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Physiology.h; sourceTree = "<group>"; };
 		"557AB635-285F-42DC-A716-104E8BF126DD" /* ofxGuiUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = ofxGuiUtils.h; sourceTree = "<group>"; };
+		57E5864A306CC9A400A7640A /* FilterEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = FilterEngine.h; path = src/FilterEngine.h; sourceTree = "<group>"; };
+		57E5864B306CC9A400A7640A /* FilterEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FilterEngine.cpp; path = src/FilterEngine.cpp; sourceTree = "<group>"; };
+		57E5864C306CC9A400A7640A /* FormantTracker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = FormantTracker.h; path = src/FormantTracker.h; sourceTree = "<group>"; };
+		57E5864D306CC9A400A7640A /* FormantTracker.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FormantTracker.cpp; path = src/FormantTracker.cpp; sourceTree = "<group>"; };
+		57E5864E306CC9A400A7640A /* SpeakerProfiles.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = SpeakerProfiles.h; path = src/SpeakerProfiles.h; sourceTree = "<group>"; };
+		57E5864F306CC9A400A7640A /* SpeakerProfiles.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SpeakerProfiles.cpp; path = src/SpeakerProfiles.cpp; sourceTree = "<group>"; };
 		"6028F371-601D-4E66-AC25-2612675F7298" /* ofxLabel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ofxLabel.cpp; sourceTree = "<group>"; };
 		"603059D9-CDD4-43BB-8784-99D14229EAE9" /* AudioFileLoader.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioFileLoader.cpp; sourceTree = "<group>"; };
 		"64409B17-AF2D-47F9-94C7-87E079B111A1" /* WorldEngine.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WorldEngine.cpp; sourceTree = "<group>"; };
@@ -221,6 +230,12 @@
 		E4B69B4A0A3A1720003C02F2 = {
 			isa = PBXGroup;
 			children = (
+				57E5864A306CC9A400A7640A /* FilterEngine.h */,
+				57E5864B306CC9A400A7640A /* FilterEngine.cpp */,
+				57E5864C306CC9A400A7640A /* FormantTracker.h */,
+				57E5864D306CC9A400A7640A /* FormantTracker.cpp */,
+				57E5864E306CC9A400A7640A /* SpeakerProfiles.h */,
+				57E5864F306CC9A400A7640A /* SpeakerProfiles.cpp */,
 				191CD6FA2847E21E0085CBB6 /* of.entitlements */,
 				E4B6FCAD0C3E899E008CF71C /* openFrameworks-Info.plist */,
 				E4EB6923138AFD0F00A09F29 /* Project.xcconfig */,
@@ -359,6 +374,9 @@
 				"A50FD650-13A7-4379-BEBF-423138716120" /* fft.cpp in Sources */,
 				"C724989B-109A-4B22-BEC8-6129687985A6" /* harvest.cpp in Sources */,
 				"EDCC10C3-9990-42A0-B0BE-F2A0BCDD233D" /* matlabfunctions.cpp in Sources */,
+				57E58650306CC9A400A7640A /* SpeakerProfiles.cpp in Sources */,
+				57E58651306CC9A400A7640A /* FormantTracker.cpp in Sources */,
+				57E58652306CC9A400A7640A /* FilterEngine.cpp in Sources */,
 				"01446A0D-62F2-458A-AD82-F0DFF0C6712D" /* stonemask.cpp in Sources */,
 				"E53A09FE-610C-497C-8874-B3A7F8366AAE" /* synthesis.cpp in Sources */,
 				"401271AD-F4F7-43D6-BDE0-42FEA85E1ED1" /* synthesisrealtime.cpp in Sources */,
@@ -388,7 +406,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_WARN_UNUSED_VARIABLE = NO;
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/include",
+					/opt/homebrew/include,
 					"$(OF_CORE_HEADERS)",
 					src,
 				);
@@ -405,7 +423,7 @@
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_UNROLL_LOOPS = YES;
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/include",
+					/opt/homebrew/include,
 					"$(OF_CORE_HEADERS)",
 					src,
 				);
@@ -422,7 +440,7 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_DYNAMIC_NO_PIC = NO;
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/include",
+					/opt/homebrew/include,
 					"$(OF_CORE_HEADERS)",
 					src,
 					src,
@@ -433,7 +451,7 @@
 					/opt/homebrew/include,
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"/opt/homebrew/lib",
+					/opt/homebrew/lib,
 					"$(inherited)",
 					/opt/homebrew/lib,
 					"$(inherited)",
@@ -456,7 +474,7 @@
 				COPY_PHASE_STRIP = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/include",
+					/opt/homebrew/include,
 					"$(OF_CORE_HEADERS)",
 					src,
 					src,
@@ -467,7 +485,7 @@
 					/opt/homebrew/include,
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"/opt/homebrew/lib",
+					/opt/homebrew/lib,
 					"$(inherited)",
 					/opt/homebrew/lib,
 					"$(inherited)",
